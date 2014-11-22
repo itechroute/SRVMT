@@ -1,0 +1,246 @@
+<project name="SRMT" default="deploy" basedir=".">
+
+	<!-- refer to the properties file that stores the values -->
+	<property file="build.properties" />
+
+	<!-- the libraries to be included in the class path -->
+	<path id="build.classpath">
+		<fileset dir="${server.lib.modules.dir}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${server.lib.mq.dir}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${ant.lib}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${compiletime.lib.dir}">
+			<include name="**/*.jar" />
+		</fileset>
+	</path>
+
+	<!-- the libraries to be included in the class path for the web module tests -->
+	<path id="build.classpath.web.test">
+		<path refid="build.classpath" />
+		<pathelement location="${web.build.dir}" />
+	</path>
+
+	<!-- the libraries to be included in the class path for the ejb module tests -->
+	<path id="build.classpath.ejb.test">
+		<path refid="build.classpath" />
+		<pathelement location="${ejb.build.dir}" />
+	</path>
+
+	<!-- the cleaning of the old data before the new build -->
+	<target name="clean">
+		<echo message="Cleaning build and distribution directories" />
+		<delete dir="${web.build.dir}" includeemptydirs="true" />
+		<delete dir="${ejb.build.dir}" includeemptydirs="true" />
+		<delete dir="${dist.dir}" includeemptydirs="true" />
+	</target>
+
+	<!-- after the clean above, prepare the directories for the build -->
+	<target name="prepare" depends="clean">
+		<echo message="Preparing build and distribution directories" />
+		<mkdir dir="${web.build.dir}" />
+		<mkdir dir="${web.build.test.unit.dir}" />
+		<mkdir dir="${web.build.test.integration.dir}" />
+		<mkdir dir="${web.build.impl.dir}" />
+		<mkdir dir="${ejb.build.dir}" />
+		<mkdir dir="${ejb.build.test.unit.dir}" />
+		<mkdir dir="${ejb.build.test.integration.dir}" />
+		<mkdir dir="${ejb.build.impl.dir}" />
+		<mkdir dir="${dist.dir}" />
+	</target>
+
+	<!-- compile the source files of the ejb project -->
+	<target name="compileejb" depends="prepare">
+		<echo message="Compiling the java source files from the ejb module" />
+
+		<!-- compile the implementation source files of the ejb project -->
+		<javac srcdir="${ejb.src.dir}" destdir="${ejb.build.impl.dir}"
+			debug="on" optimize="on">
+			<classpath refid="build.classpath" />
+		</javac>
+	</target>
+
+	<!-- compile the source files of the ejb test cases -->
+	<target name="compileejbtests" depends="compileejb">
+		<echo message="Compiling the test java source files from the ejb module" />
+		<!-- compile the unit test cases for the ejb -->
+		<javac srcdir="${ejb.test.unit.dir}" destdir="${ejb.build.test.unit.dir}"
+			debug="on" optimize="on">
+			<classpath refid="build.classpath.ejb.test" />
+		</javac>
+		<!-- compile the integration test cases for the ejb -->
+		<javac srcdir="${ejb.test.integration.dir}" destdir="${ejb.build.test.integration.dir}"
+			debug="on" optimize="on">
+			<classpath refid="build.classpath.ejb.test" />
+		</javac>
+	</target>
+
+	<!-- execute the unit tests for the ejb module -->
+	<target name="executeejbunittests" depends="compileejbtests">
+		<echo message="Executing the unit tests for the ejb module" />
+
+		<delete dir="${ejb.test.report.unit.dir}" />
+		<mkdir dir="${ejb.test.report.unit.dir}" />
+
+		<junit fork="no" errorProperty="ejb.unit.test.failed"
+			failureProperty="ejb.unit.test.failed">
+			<classpath refid="build.classpath.ejb.test" />
+			<classpath>
+				<pathelement location="${ejb.build.test.unit.dir}" />
+			</classpath>
+			<formatter type="plain" usefile="false" />
+			<formatter type="xml" />
+			<batchtest todir="${ejb.test.report.unit.dir}">
+				<fileset dir="${ejb.test.unit.dir}" />
+			</batchtest>
+		</junit>
+		<fail message="${unit.ejb.failed}" if="ejb.unit.test.failed" />
+	</target>
+
+	<!-- execute the integration tests for the ejb module if the unit tests 
+		for the ejb module pass -->
+	<target name="executeejbintegrationtests" depends="executeejbunittests">
+		<echo message="Executing the integration tests for the ejb module" />
+
+		<delete dir="${ejb.test.report.integration.dir}" />
+		<mkdir dir="${ejb.test.report.integration.dir}" />
+
+		<junit fork="no" errorProperty="ejb.integration.test.failed"
+			failureProperty="ejb.integration.test.failed">
+			<classpath refid="build.classpath.ejb.test" />
+			<classpath>
+				<pathelement location="${ejb.build.test.integration.dir}" />
+			</classpath>
+			<formatter type="plain" usefile="false" />
+			<formatter type="xml" />
+			<batchtest todir="${ejb.test.report.integration.dir}">
+				<fileset dir="${ejb.test.integration.dir}" />
+			</batchtest>
+		</junit>
+		<fail message="${integration.ejb.failed}" if="ejb.integration.test.failed" />
+	</target>
+
+	<!-- compile the source files of the web project -->
+	<target name="compileweb" depends="executeejbintegrationtests">
+		<echo message="Compiling the java source files from the web module" />
+		<javac srcdir="${web.src.dir}" destdir="${web.build.dir}" debug="on"
+			optimize="on">
+			<classpath refid="build.classpath" />
+			<classpath>
+				<pathelement location="${ejb.build.impl.dir}" />
+			</classpath>
+		</javac>
+	</target>
+
+	<!-- compile the source files of the web test cases -->
+	<target name="compilewebtests" depends="compileweb">
+		<echo message="Compiling the test java source files from the web module" />
+		<!-- compile the unit test cases for the web -->
+		<javac srcdir="${web.test.unit.dir}" destdir="${web.build.test.unit.dir}"
+			debug="on" optimize="on">
+			<classpath refid="build.classpath.web.test" />
+		</javac>
+		<!-- compile the integration test cases for the web -->
+		<javac srcdir="${web.test.integration.dir}" destdir="${web.build.test.integration.dir}"
+			debug="on" optimize="on">
+			<classpath refid="build.classpath.web.test" />
+		</javac>
+	</target>
+
+	<!-- execute the unit tests for the web module -->
+	<target name="executewebunittests" depends="compilewebtests">
+		<echo message="Executing the unit tests for the web module" />
+
+		<delete dir="${web.test.report.unit.dir}" />
+		<mkdir dir="${web.test.report.unit.dir}" />
+		<junit fork="no" errorProperty="web.unit.test.failed"
+			failureProperty="web.unit.test.failed">
+			<classpath refid="build.classpath.web.test" />
+			<classpath>
+				<pathelement location="${web.build.test.unit.dir}" />
+			</classpath>
+			<formatter type="plain" usefile="false" />
+			<formatter type="xml" />
+			<batchtest todir="${web.test.report.unit.dir}">
+				<fileset dir="${web.test.unit.dir}" />
+			</batchtest>
+		</junit>
+		<fail message="${unit.web.failed}" if="web.unit.test.failed" />
+	</target>
+
+	<!-- execute the integration tests for the web module if the unit tests 
+		for the web module pass -->
+	<target name="executewebintegrationtests" depends="executewebunittests">
+		<echo message="Executing the integration tests for the web module" />
+
+		<delete dir="${web.test.report.integration.dir}" />
+		<mkdir dir="${web.test.report.integration.dir}" />
+		<junit fork="no" errorProperty="web.integration.test.failed"
+			failureProperty="web.integration.test.failed">
+			<classpath refid="build.classpath.web.test" />
+			<classpath>
+				<pathelement location="${web.build.test.integration.dir}" />
+			</classpath>
+			<formatter type="plain" usefile="false" />
+			<formatter type="xml" />
+			<batchtest todir="${web.test.report.integration.dir}">
+				<fileset dir="${web.test.integration.dir}" />
+			</batchtest>
+		</junit>
+		<fail message="${integration.web.failed}" if="web.integration.test.failed" />
+	</target>
+
+	<!-- build the war -->
+	<target name="war" depends="executewebintegrationtests">
+		<echo message="Building the web application archive" />
+		<war destfile="${warfile.path}" webxml="${web.conf.dir}/web.xml">
+			<lib dir="${web.deployable.lib.dir}" />
+			<classes dir="${web.build.dir}" />
+			<zipfileset dir="${web.webcontent.dir}" />
+		</war>
+	</target>
+
+	<!-- building the jar for the ejb implementation and ejb client module and 
+		moving it to the app level lib directory -->
+	<target name="ejbjar" depends="executeejbintegrationtests">
+		<echo
+			message="Building jar for the ejb module that can be deployed as library file of EAR" />
+
+		<!-- building the jar for the implementation module -->
+		<jar destfile="${ejbjarfile.path}">
+			<fileset dir="${ejb.build.impl.dir}"></fileset>
+			<metainf dir="${ejb.conf.dir}" includes="*.xml" />
+		</jar>
+
+		<!-- copy the above jar to the lib directory of app -->
+		<copy todir="${app.deployable.lib.dir}">
+			<fileset dir="${dist.dir}">
+				<include name="*.jar" />
+			</fileset>
+		</copy>
+	</target>
+
+	<!-- build the enterprise application archive module -->
+	<target name="ear" depends="war, ejbjar">
+		<echo message="Building the enterprise application archive" />
+		<ear destfile="${earfile.path}" appxml="${app.conf.dir}/application.xml">
+			<zipfileset dir="${app.deployable.lib.dir}" prefix="lib" />
+			<fileset dir="${dist.dir}" includes="*.war" />
+			<metainf dir="${app.conf.dir}" includes="*.xml"></metainf>
+		</ear>
+	</target>
+
+	<!-- deploying the enterprise application archive on the server deployment 
+		directory -->
+	<target name="deploy" depends="ear">
+		<echo
+			message="Deploying the enterprise application archive to the server deploy directory" />
+		<copy todir="${server.deploydir}">
+			<fileset dir="${dist.dir}" includes="*.ear" />
+		</copy>
+	</target>
+</project>
